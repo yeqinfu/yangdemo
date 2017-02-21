@@ -4,8 +4,10 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.Point;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 
@@ -32,8 +34,10 @@ public class MoveView extends View {
     private float smallRadius = 20;//子小小圆的半径
 
     private List<Point> list;//子小圆的点集合
-    private List<Point> dragList;//用于拖动的小小圆集合
     private Point controllerPoint;//控制点相对于子圆的坐标
+    private int focusIndex=-1;//焦点所在位置
+    private int dis=10;//控制点和小球的表面距离
+    private double radiusOffset=0;//焦点位置角偏移
 
 
     public void resetView(){
@@ -41,12 +45,11 @@ public class MoveView extends View {
         radius=400;
         circleRadius=40;
         smallRadius=20;
-        dragList.clear();
-        for (int i=0;i<list.size();i++){
-            dragList.add(i,getSmallPoint(list.get(i)));
-        }
         isTouchSmallCicle=false;
         isInMove=false;
+        focusIndex=-1;
+        int offset=(int)(-circleRadius-smallRadius-dis);
+        controllerPoint=new Point(offset,offset);//控制点初始化相对位置
         invalidate();
     }
 
@@ -61,8 +64,8 @@ public class MoveView extends View {
         redPaint.setStyle(Paint.Style.FILL);  //设置画笔模式为填充
         redPaint.setStrokeWidth(10f);         //设置画笔宽度为10px
         bigPaint.setColor(Color.BLACK);       //设置画笔颜色
-        bigPaint.setStyle(Paint.Style.FILL_AND_STROKE);  //设置画笔模式为填充
-        bigPaint.setStrokeWidth(30f);         //设置画笔宽度为10px
+        bigPaint.setStyle(Paint.Style.STROKE);  //设置画笔模式为填充
+        bigPaint.setStrokeWidth(10f);         //设置画笔宽度为10px
     }
 
 
@@ -76,8 +79,8 @@ public class MoveView extends View {
         centerX = Utils.getScreenWidth(getContext()) / 2;
         centerY = Utils.getScreenHeight(getContext()) / 2;
         list = new ArrayList<>();
-        dragList = new ArrayList<>();
-
+        int offset=(int)(-circleRadius-smallRadius-dis);
+        controllerPoint=new Point(offset,offset);//控制点初始化相对位置
 
     }
 
@@ -101,29 +104,33 @@ public class MoveView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        if (isTouchSmallCicle){
-            list.clear();
-            for (int i = 0; i < viewNumber; i++) {
-                Point point = getPointByIndex(i);
-                list.add(point);
-                canvas.drawCircle(point.x, point.y, circleRadius, mPaint);
-                //小小圆
-                Point s=dragList.get(i);
-                canvas.drawCircle(s.x, s.y, smallRadius, redPaint);
-            }
-        }else{
-            list.clear();
-            dragList.clear();
-            for (int i = 0; i < viewNumber; i++) {
-                Point point = getPointByIndex(i);
-                list.add(point);
-                canvas.drawCircle(point.x, point.y, circleRadius, mPaint);
-                //小小圆
-                Point s = getSmallPoint(point);
-                dragList.add(s);
-                canvas.drawCircle(s.x, s.y, smallRadius, redPaint);
+        list.clear();
+        Point tempPoint = null;
+        for (int i = 0; i < viewNumber; i++) {
+            Point point = getPointByIndex(i);
+            list.add(point);
+            canvas.drawCircle(point.x, point.y, circleRadius, mPaint);
+            if (focusIndex==i){//当前子view被选中
+                tempPoint=point;
             }
         }
+        if (focusIndex!=-1){
+            canvas.save();
+            canvas.restore();
+            canvas.translate(tempPoint.x, tempPoint.y);
+            canvas.translate(controllerPoint.x, controllerPoint.y);
+            canvas.drawCircle(0, 0, smallRadius, redPaint);
+            Path p=new Path();
+            int offset=(int)(smallRadius+circleRadius+dis);
+            p.lineTo(2*offset,0);
+            p.lineTo(2*offset,2*offset);
+            p.lineTo(0,2*offset);
+            p.close();
+            canvas.drawPath(p,bigPaint);
+            canvas.save();
+
+        }
+
 
     }
 
@@ -136,7 +143,7 @@ public class MoveView extends View {
      */
     private Point getPointByIndex(int index) {
         Point p = new Point();
-        double d = 1.00 * index / viewNumber * 2 * Math.PI;
+        double d = 1.00 * index / viewNumber * 2 * Math.PI-radiusOffset;
         double x = centerX - Math.cos(d) * radius;
         double y = centerY - Math.sin(d) * radius;
         p.set((int) x, (int) y);
@@ -151,32 +158,53 @@ public class MoveView extends View {
     public boolean onTouchEvent(MotionEvent event) {
         if (event.getAction() == MotionEvent.ACTION_DOWN) {//点击判断
             isInMove = isTouchChildView(event.getX(), event.getY());
+            if (isInMove){
+                invalidate();
+            }
             isTouchSmallCicle = isTouchSmallChildView(event.getX(), event.getY());
+
 
         } else if (event.getAction() == MotionEvent.ACTION_MOVE) {
             if (isInMove) {
-                double xx = (event.getX() - centerX) * (event.getX() - centerX);
-                double yy = (event.getY() - centerY) * (event.getY() - centerY);
-                radius = (float) Math.sqrt(xx + yy);
+                changeRadiusCircle(event.getX(),event.getY());
+
                 invalidate();
             }
-            if (isTouchSmallCicle){
-                dragList.get(touchSmallCicleIndex).set((int)event.getX(),(int)event.getY());
-                double xx = (event.getX() - list.get(touchSmallCicleIndex).x) * (event.getX() - list.get(touchSmallCicleIndex).x);
-                double yy = (event.getY() - list.get(touchSmallCicleIndex).y) * (event.getY() - list.get(touchSmallCicleIndex).y);
-                circleRadius = (float) Math.sqrt(xx + yy)-smallRadius-5;
-                for (int i=0;i<list.size();i++){
-                    if (i!=touchSmallCicleIndex){
-                        Point p=getSmallPoint(list.get(i));
-                        dragList.set(i,p);
-                    }
+            if (isTouchSmallCicle&&focusIndex!=-1){
+                Point p=list.get(focusIndex);
+                if (p.x>0&&p.y>0){//一象限list
+                    controllerPoint.set((int) (event.getX() - p.x), (int) (event.getY() - p.y));
+                }else if (p.x<0&&p.y>0){//二象限
+                    controllerPoint.set((int)(p.x-event.getX()),(int)(event.getY()-p.y));
+                }else if (p.x<0&&p.y<0){//三象限
+                    controllerPoint.set((int)(p.x-event.getX()),(int)(-event.getY()+p.y));
+                }else{
+                    controllerPoint.set((int)(event.getX()-p.x),(int)(-event.getY()+p.y));
                 }
+
+
+
                 invalidate();
             }
         }
 
 
         return true;
+    }
+
+    private void changeRadiusCircle(float x,float y) {
+        double xx = (x - centerX) * (x - centerX);
+        double yy = (y - centerY) * (y - centerY);
+        radius = (float) Math.sqrt(xx + yy);
+        if (x-centerX>0&&y-centerY>0){//一象限
+            radiusOffset= (Math.PI- Math.atan(yy/xx));
+        }else if (x-centerX<0&&y-centerY>0){
+            radiusOffset= (Math.atan(yy/xx));
+        }else if (x-centerX<0&&y-centerY<0){
+            radiusOffset= (2*Math.PI- Math.atan(yy/xx));
+        }else {
+            radiusOffset= (Math.PI+Math.atan(yy/xx));
+        }
     }
 
     /**
@@ -188,7 +216,8 @@ public class MoveView extends View {
         for (int i = 0; i < list.size(); i++) {
             Point p = list.get(i);
             float dis = (float) Math.sqrt((x - p.x) * (x - p.x) + (y - p.y) * (y - p.y));
-            if (dis < circleRadius) {
+            if (dis < circleRadius+this.dis+smallRadius) {
+                focusIndex=i;
                 return true;
             }
         }
@@ -202,24 +231,23 @@ public class MoveView extends View {
      * @return
      */
     private boolean isTouchSmallChildView(float x, float y) {
-        for (int i = 0; i < dragList.size(); i++) {
-            Point p = dragList.get(i);
-            float dis = (float) Math.sqrt((x - p.x) * (x - p.x) + (y - p.y) * (y - p.y));
-            if (dis < smallRadius) {
-                touchSmallCicleIndex=i;
+        if (focusIndex!=-1){
+           float xx=controllerPoint.x+list.get(focusIndex).x;
+            float yy=controllerPoint.y+list.get(focusIndex).y;
+
+            float xxx=(xx-x)*(xx-x);
+            float yyy=(yy-y)*(yy-y);
+            double offset=Math.sqrt(xxx+yyy);
+
+            if (offset<smallRadius+dis){
                 return true;
             }
         }
-
         return false;
     }
 
 
-    private Point getSmallPoint(Point s) {
-        Point p = new Point();
-        p.set((int) (s.x - circleRadius - smallRadius - 5), (int) (s.y - circleRadius - smallRadius - 5));
-        return p;
-    }
+
 
 
 }
