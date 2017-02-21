@@ -30,7 +30,7 @@ public class MoveView extends View {
     //粗画笔
     private Paint bigPaint=new Paint();
 
-    private float circleRadius = 40;//子小圆的半径
+    private float circleRadius = 80;//子小圆的半径
     private float smallRadius = 20;//子小小圆的半径
 
     private List<Point> list;//子小圆的点集合
@@ -109,12 +109,19 @@ public class MoveView extends View {
         for (int i = 0; i < viewNumber; i++) {
             Point point = getPointByIndex(i);
             list.add(point);
-            canvas.drawCircle(point.x, point.y, circleRadius, mPaint);
+            Path p=new Path();
+            p.moveTo(point.x,point.y);
+            p.lineTo(point.x+circleRadius,point.y);
+            p.lineTo(point.x+circleRadius,point.y+circleRadius);
+            p.lineTo(point.x,point.y+circleRadius);
+            p.close();
+            canvas.drawPath(p,mPaint);
+          //  canvas.drawCircle(point.x, point.y, circleRadius, mPaint);
             if (focusIndex==i){//当前子view被选中
                 tempPoint=point;
             }
         }
-        if (focusIndex!=-1){
+      /*  if (focusIndex!=-1){
             canvas.save();
             canvas.restore();
             canvas.translate(tempPoint.x, tempPoint.y);
@@ -129,7 +136,7 @@ public class MoveView extends View {
             canvas.drawPath(p,bigPaint);
             canvas.save();
 
-        }
+        }*/
 
 
     }
