@@ -33,6 +33,7 @@ public class MoveView extends View {
 
     private List<Point> list;//子小圆的点集合
     private List<Point> dragList;//用于拖动的小小圆集合
+    private Point controllerPoint;//控制点相对于子圆的坐标
 
 
     public void resetView(){
