@@ -1,2 +1,2 @@
 # yangdemo
-# demo ![demo](demo.gif)
+# demo <img src="demo.gif" width="300px" />
